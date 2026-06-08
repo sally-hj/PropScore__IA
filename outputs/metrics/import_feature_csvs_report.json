@@ -1,0 +1,35 @@
+{
+  "warm": {
+    "file_name": "warm.csv",
+    "source_path": "/Users/ouatilanas/Downloads/warm.csv",
+    "destination_path": "/Users/ouatilanas/Downloads/Face3/PropScore_AI/features/warm.csv",
+    "row_count": 35,
+    "column_count": 26,
+    "missing_values": 0,
+    "label_distribution": {
+      "warm": 35
+    },
+    "schema_valid": true,
+    "exact_schema_match": true,
+    "imported_successfully": true,
+    "error": null
+  },
+  "ravdess": {
+    "file_name": "ravdess.csv",
+    "source_path": "/Users/ouatilanas/Downloads/ravdess.csv",
+    "destination_path": "/Users/ouatilanas/Downloads/Face3/PropScore_AI/features/ravdess.csv",
+    "row_count": 1440,
+    "column_count": 26,
+    "missing_values": 0,
+    "label_distribution": {
+      "cold": 768,
+      "hot": 384,
+      "warm": 288
+    },
+    "schema_valid": true,
+    "exact_schema_match": true,
+    "imported_successfully": true,
+    "error": null
+  },
+  "overall_success": true
+}

@@ -1,0 +1,9 @@
+              precision    recall  f1-score   support
+
+        cold     1.0000    1.0000    1.0000       669
+        warm     1.0000    1.0000    1.0000       908
+         hot     1.0000    1.0000    1.0000       271
+
+    accuracy                         1.0000      1848
+   macro avg     1.0000    1.0000    1.0000      1848
+weighted avg     1.0000    1.0000    1.0000      1848

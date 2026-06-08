@@ -1,0 +1,40 @@
+rows: 9240
+columns: 21
+missing_values: 0
+class_distribution: {'warm': 4542, 'cold': 3344, 'hot': 1354}
+
+score_lead x label crosstab:
+label       cold  hot   warm
+score_lead                  
+0            918     0     0
+1           2426     0     0
+2              0     0  2667
+3              0     0  1875
+4              0   944     0
+5              0   354     0
+6              0    56     0
+
+score_lead x label normalized by row:
+label       cold  hot   warm
+score_lead                  
+0            1.0   0.0   0.0
+1            1.0   0.0   0.0
+2            0.0   0.0   1.0
+3            0.0   0.0   1.0
+4            0.0   1.0   0.0
+5            0.0   1.0   0.0
+6            0.0   1.0   0.0
+
+mean_row_purity: 1.0000
+WARNING: score_lead appears to almost perfectly separate the classes. Do not use it for fair model evaluation.
+correlation_with_target_id:
+score_lead                  0.927065
+interaction_score           0.628986
+total_time_spent_website    0.535962
+binary_target               0.516198
+num_visits                  0.492065
+page_views_per_visit        0.485224
+ratio_budget_income        -0.266859
+income                      0.231436
+budget                      0.049891
+age                        -0.010856

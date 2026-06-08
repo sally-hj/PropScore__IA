@@ -1,0 +1,31 @@
+{
+  "input_csv": "/Users/ouatilanas/Downloads/dataset_final_catboost.csv",
+  "output_csv": "/Users/ouatilanas/Downloads/Face3/PropScore_AI/data/processed/prospects.csv",
+  "row_count": 9240,
+  "column_count": 21,
+  "missing_values": 0,
+  "class_distribution": {
+    "warm": 4542,
+    "cold": 3344,
+    "hot": 1354
+  },
+  "numeric_columns": [
+    "age",
+    "income",
+    "budget",
+    "num_visits",
+    "total_time_spent_website",
+    "page_views_per_visit",
+    "ratio_budget_income",
+    "interaction_score"
+  ],
+  "categorical_columns": [
+    "profession",
+    "property_type",
+    "source_lead",
+    "city",
+    "lead_origin",
+    "last_activity",
+    "last_notable_activity"
+  ]
+}

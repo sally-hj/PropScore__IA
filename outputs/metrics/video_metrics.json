@@ -1,0 +1,20 @@
+{
+  "accuracy": 1.0,
+  "macro_precision": 1.0,
+  "macro_recall": 1.0,
+  "macro_f1": 1.0,
+  "precision_weighted": 1.0,
+  "recall_weighted": 1.0,
+  "f1_weighted": 1.0,
+  "train_rows": 83,
+  "test_rows": 21,
+  "feature_count_before_encoding": 69,
+  "feature_count_after_encoding": 74,
+  "label_mapping": {
+    "cold": 0,
+    "warm": 1,
+    "hot": 2
+  },
+  "model_mode": "hybrid",
+  "training_date": "2026-05-21T20:05:46.767689+00:00"
+}

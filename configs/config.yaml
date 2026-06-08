@@ -1,0 +1,108 @@
+paths:
+  source_video_root: hayat-ai-videos
+  raw_videos_root: data/raw_videos
+  frames_root: data/frames
+  faces_root: data/faces
+  audio_root: data/audio
+  processed_root: data/processed
+  features_root: features
+  models_root: models
+  outputs_root: outputs
+  logs_root: outputs/logs
+  metrics_root: outputs/metrics
+  predictions_root: outputs/predictions
+  notebooks_root: notebooks
+
+labels:
+  - hot
+  - warm
+  - cold
+
+random_state: 42
+
+pipeline:
+  frame_sample_fps: 1.0
+
+split:
+  test_size: 0.2
+
+audio:
+  sample_rate: 16000
+
+whisper:
+  model_size: base
+
+camembert:
+  model_name: camembert-base
+
+online_video:
+  enabled: true
+  model_name: openai/clip-vit-base-patch32
+  num_frames: 8
+  prompts:
+    hot: "A photo of a real estate prospect who is highly interested, actively engaged, asking to move forward, and ready to buy soon."
+    warm: "A photo of a real estate prospect who is somewhat interested but hesitant, comparing options, and not fully committed yet."
+    cold: "A photo of a real estate prospect who is uninterested, disengaged, refusing, or clearly not planning to continue."
+
+xgboost:
+  n_estimators: 300
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.9
+  colsample_bytree: 0.9
+  objective: multi:softprob
+  num_class: 3
+  eval_metric: mlogloss
+  tree_method: hist
+  random_state: 42
+
+tabular:
+  input_csv: data/processed/prospects.csv
+  target_column: label
+  use_score_lead: false
+  use_binary_target_as_feature: false
+  test_size: 0.2
+  random_state: 42
+  use_mock_data: false
+
+fusion:
+  mode: demo_synthetic
+  allow_synthetic_label_pairing: true
+
+multimodal:
+  expected_schema:
+    - video_path
+    - label
+    - transcript
+    - sentiment
+    - dominant_emotion
+    - confidence_emotion
+    - pitch_mean
+    - energy_mean
+    - speech_rate
+    - mfcc_1
+    - mfcc_2
+    - mfcc_3
+    - mfcc_4
+    - mfcc_5
+    - keyword_count
+    - keyword_type
+    - vision_score
+    - audio_score
+    - semantic_score
+    - final_score
+    - face_detected
+    - landmark_count
+    - face_center_x
+    - face_center_y
+    - face_width
+    - face_height
+  use_hot_csv: true
+  use_warm_csv: true
+  use_cold_csv: true
+  use_ravdess_csv: false
+  ravdess_mode: auxiliary_only
+
+live_camera:
+  frame_stride: 5
+  audio_nlp_available: false
