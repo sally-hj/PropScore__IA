@@ -36,16 +36,20 @@ except Exception:  # pragma: no cover
 
 from prop_score_ai.config import ensure_runtime_dirs, load_config
 from prop_score_ai.constants import ID_TO_LABEL, LABEL_TO_ID, LABELS
-from prop_score_ai.inference_pipeline import load_bundle, predict_from_raw_row, predict_visual_frame, process_uploaded_video
+from prop_score_ai.inference_pipeline import load_bundle, predict_from_raw_row, predict_visual_frame, process_uploaded_video, _default_raw_row
 from prop_score_ai.online_video_model import DEFAULT_VIDEO_MODEL_NAME, DEFAULT_VIDEO_PROMPTS, score_video_against_prompts
+from prop_score_ai.audio_pipeline import WhisperTranscriber, extract_audio_from_video, extract_librosa_features
+from prop_score_ai.nlp_pipeline import CamembertSemanticAnalyzer
+from prop_score_ai.video_pipeline import analyze_video_visual_signals
+from prop_score_ai.io_utils import prospect_id_from_video_path, video_id_from_path
 from utils.feature_schema import clean_multimodal_dataframe, validate_multimodal_schema
 
 st.set_page_config(page_title="PropScore_AI", page_icon="🏠", layout="wide")
 
 COLOR_MAP = {
-    "hot": "#e4572e",
-    "warm": "#f4b400",
-    "cold": "#5b6b7a",
+    "hot": "#EF4444",   # Crimson Rose
+    "warm": "#F59E0B",  # Sunset Amber
+    "cold": "#3B82F6",  # Muted Frost
 }
 
 DISPLAY_LABEL_MAP = {"cold": "Cold", "warm": "Warm", "hot": "Hot"}
@@ -253,43 +257,109 @@ def model_mode(bundle: dict | None, metrics: dict | None = None) -> str:
         return str(bundle["feature_schema_details"]["model_mode"])
     return "tabular_only"
 
-
-def page_overview() -> None:
-    st.title("PropScore_AI")
-    st.subheader("Hybrid Real Estate Prospect Qualification System")
-    st.write(
-        "This system classifies real estate prospects into Hot, Warm, and Cold using tabular data and multimodal behavioral analysis."
-    )
-
+def inject_custom_css() -> None:
     st.markdown(
         """
-        ```text
-        Tabular Data → Structured Features
-        Video → Frames → MediaPipe + DeepFace → Visual Features
-        Video → Audio → Librosa → Vocal Features
-        Audio → Whisper → Transcript
-        Transcript → CamemBERT → Semantic Features
-        Structured + Visual + Vocal + Semantic Features → Fusion → XGBoost → Hot / Warm / Cold
-        ```
-        """
-    )
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(
-            '<div style="padding:1rem;border-radius:18px;background:linear-gradient(135deg,#fff2ee,#ffd6cb);border:1px solid #f0b49f;"><h3 style="margin:0;color:#b64124;">Hot</h3><p style="margin:0.5rem 0 0 0;">Highly interested prospect</p></div>',
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            '<div style="padding:1rem;border-radius:18px;background:linear-gradient(135deg,#fff9df,#fff0a5);border:1px solid #e8d66b;"><h3 style="margin:0;color:#806200;">Warm</h3><p style="margin:0.5rem 0 0 0;">Hesitant / moderately interested prospect</p></div>',
-            unsafe_allow_html=True,
-        )
-    with c3:
-        st.markdown(
-            '<div style="padding:1rem;border-radius:18px;background:linear-gradient(135deg,#eef4ff,#dbe7f7);border:1px solid #b9c7da;"><h3 style="margin:0;color:#35506f;">Cold</h3><p style="margin:0.5rem 0 0 0;">Uninterested / disengaged prospect</p></div>',
-            unsafe_allow_html=True,
-        )
+        /* Global font and background override */
+        html, body, [data-testid="stAppViewContainer"] {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0B0F19;
+            color: #F3F4F6;
+        }
+
+        /* Header style override */
+        [data-testid="stHeader"] {
+            background-color: rgba(11, 15, 25, 0.8) !important;
+            backdrop-filter: blur(10px) !important;
+        }
+
+        /* Sidebar styling */
+        [data-testid="stSidebar"] {
+            background-color: #0F172A !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+
+        /* Styled containers/cards */
+        .dashboard-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .hot-card {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%) !important;
+            border: 1px solid rgba(239, 68, 68, 0.4) !important;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.1);
+            backdrop-filter: blur(8px);
+        }
+
+        .warm-card {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.05) 100%) !important;
+            border: 1px solid rgba(245, 158, 11, 0.4) !important;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
+            backdrop-filter: blur(8px);
+        }
+
+        .cold-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.05) 100%) !important;
+            border: 1px solid rgba(59, 130, 246, 0.4) !important;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1);
+            backdrop-filter: blur(8px);
+        }
+
+        /* Custom fonts & highlights */
+        .gradient-text {
+            background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #F3F4F6;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Video container constraints */
+        .video-container {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            margin-bottom: 1.5rem;
+            background: #000;
+        }
+
+        /* Override default streamlit metric card padding & background */
+        div[data-testid="metric-container"] {
+            background-color: rgba(30, 41, 59, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-radius: 12px !important;
+            padding: 0.75rem 1rem !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 def page_dataset_dashboard(cfg: dict[str, Any]) -> None:
@@ -699,73 +769,122 @@ def page_prediction(cfg: dict[str, Any], model, bundle: dict | None) -> None:
 
 
 def page_video_upload(cfg: dict[str, Any], model, bundle: dict | None) -> None:
-    st.header("Video Upload Prediction")
-    legacy_model = None
-    legacy_bundle = None
-    st.caption("Legacy local model loading is disabled on this page to avoid incompatible pickle / numpy errors.")
+    st.markdown(
+        "<h1 class='gradient-text'>Video Upload Prediction</h1>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p style='color:#9CA3AF; font-size:1.1rem; margin-top:-0.5rem;'>Upload customer behavior videos for automated hybrid prospect scoring (Hot/Warm/Cold).</p>",
+        unsafe_allow_html=True
+    )
 
-    uploaded = st.file_uploader("Upload a video", type=["mp4", "mov", "avi", "mkv", "webm", "m4v"], key="video_upload_prediction")
+    uploaded = st.file_uploader("Upload a video", type=["mp4", "mov", "avi", "mkv", "webm", "m4v"], key="video_upload_prediction", label_visibility="collapsed")
+    
     if uploaded is None:
+        st.markdown(
+            """
+            <div class="dashboard-card" style="text-align: center; padding: 3rem 1.5rem; border: 2px dashed rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">📤</div>
+                <h3 style="margin: 0; color: #F3F4F6;">Select or drop a video file above</h3>
+                <p style="color: #9CA3AF; margin-top: 0.5rem; margin-bottom: 0;">Supported formats: MP4, MOV, AVI, MKV, WEBM</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         return
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded.name).suffix) as tmp:
         tmp.write(uploaded.read())
         temp_path = Path(tmp.name)
 
-    st.video(str(temp_path))
-    with st.spinner("Running multimodal inference..."):
-        result = process_uploaded_video(temp_path, legacy_model, legacy_bundle, cfg)
+    # Two column layout: Left for Video, Right for Prediction Output
+    col1, col2 = st.columns([1.1, 1.0], gap="large")
 
-    prediction = result["prediction"]
-    online_error = prediction.get("online_error")
-    final_source = prediction.get("prediction_source", "online_video_model")
-    transcript_text = (result["transcript"].get("transcript", "") or "").strip()
-    sentiment_label = result["semantic"].get("sentiment_label", "neutral") if transcript_text else "unavailable"
-    st.subheader("Final Predicted Class")
-    st.markdown(f"**{normalize_label_display(prediction['predicted_label'])}**")
-    st.caption(
-        f"Prediction source: {final_source} • "
-        f"Backend: {prediction.get('scoring_backend', 'unknown')} • "
-        f"Frames analyzed: {int(prediction.get('num_frames', 0))}"
-    )
-
-    vc1, vc2, vc3, vc4 = st.columns(4)
-    vc1.metric("Dominant Emotion", result["visual"].get("dominant_emotion", "unknown"))
-    vc2.metric("Vision Score", f"{float(result['visual'].get('vision_score', 0.0)):.2f}")
-    vc3.metric("Audio Score", f"{float(result['audio'].get('audio_score', 0.0)):.2f}")
-    vc4.metric("Online Top Prob.", f"{float(prediction.get('max_probability', 0.0)):.2f}")
-    st.write("Transcript")
-    st.code(result["transcript"].get("transcript", "") or "No transcript available", language="text")
-    st.metric("Semantic Score", f"{float(result['semantic'].get('semantic_score', 0.0)):.2f}")
-    if float(prediction.get("max_probability", 0.0)) < 0.45 or float(prediction.get("probability_gap", 0.0)) < 0.12:
-        st.warning(
-            f"Low-confidence video prediction ({float(prediction.get('max_probability', 0.0)):.1%} top probability, "
-            f"{float(prediction.get('probability_gap', 0.0)):.1%} gap)."
+    with col1:
+        st.markdown("<div class='card-title'>📹 Uploaded Frame Preview</div>", unsafe_allow_html=True)
+        st.markdown("<div class='video-container'>", unsafe_allow_html=True)
+        st.video(str(temp_path))
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Display basic metadata
+        st.markdown(
+            f"""
+            <div class="dashboard-card" style="padding: 1rem; margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #9CA3AF;">File Name</span>
+                    <span style="color: #FFFFFF; font-weight: 500;">{uploaded.name}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                    <span style="color: #9CA3AF;">File Size</span>
+                    <span style="color: #FFFFFF; font-weight: 500;">{uploaded.size / (1024*1024):.2f} MB</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
-    with st.expander("Prediction diagnostics", expanded=False):
-        st.json(
+
+    with col2:
+        legacy_model = None
+        legacy_bundle = None
+        
+        with st.spinner("Running multimodal inference..."):
+            result = process_uploaded_video(temp_path, legacy_model, legacy_bundle, cfg)
+
+        prediction = result["prediction"]
+        online_error = prediction.get("online_error")
+        final_source = prediction.get("prediction_source", "online_video_model")
+        transcript_text = (result["transcript"].get("transcript", "") or "").strip()
+        sentiment_label = result["semantic"].get("sentiment_label", "neutral") if transcript_text else "unavailable"
+        
+        st.subheader("Final Predicted Class")
+        st.markdown(f"**{normalize_label_display(prediction['predicted_label'])}**")
+        st.caption(
+            f"Prediction source: {final_source} • "
+            f"Backend: {prediction.get('scoring_backend', 'unknown')} • "
+            f"Frames analyzed: {int(prediction.get('num_frames', 0))}"
+        )
+
+        vc1, vc2, vc3, vc4 = st.columns(4)
+        vc1.metric("Dominant Emotion", result["visual"].get("dominant_emotion", "unknown"))
+        vc2.metric("Vision Score", f"{float(result['visual'].get('vision_score', 0.0)):.2f}")
+        vc3.metric("Audio Score", f"{float(result['audio'].get('audio_score', 0.0)):.2f}")
+        vc4.metric("Online Top Prob.", f"{float(prediction.get('max_probability', 0.0)):.2f}")
+        
+        st.write("Transcript")
+        st.code(result["transcript"].get("transcript", "") or "No transcript available", language="text")
+        st.metric("Semantic Score", f"{float(result['semantic'].get('semantic_score', 0.0)):.2f}")
+        
+        if float(prediction.get("max_probability", 0.0)) < 0.45 or float(prediction.get("probability_gap", 0.0)) < 0.12:
+            st.warning(
+                f"Low-confidence video prediction ({float(prediction.get('max_probability', 0.0)):.1%} top probability, "
+                f"{float(prediction.get('probability_gap', 0.0)):.1%} gap)."
+            )
+            
+        with st.expander("Prediction diagnostics", expanded=False):
+            st.json(
+                {
+                    "sentiment_label": sentiment_label,
+                    "final_label": prediction.get("predicted_label"),
+                    "prediction_source": prediction.get("prediction_source", "online_video_model"),
+                    "scoring_backend": prediction.get("scoring_backend", "unknown"),
+                    "online_model_name": prediction.get("model_name"),
+                    "online_error": online_error,
+                    "online_probabilities": prediction.get("probabilities", {}),
+                    "legacy_model_label": prediction.get("legacy_predicted_label", "unavailable"),
+                    "legacy_model_probabilities": prediction.get("legacy_probabilities", {}),
+                    "legacy_model_max_probability": prediction.get("legacy_max_probability", 0.0),
+                    "legacy_model_gap": prediction.get("legacy_probability_gap", 0.0),
+                }
+            )
+            
+        prob_df = pd.DataFrame(
             {
-                "sentiment_label": sentiment_label,
-                "final_label": prediction.get("predicted_label"),
-                "prediction_source": prediction.get("prediction_source", "online_video_model"),
-                "scoring_backend": prediction.get("scoring_backend", "unknown"),
-                "online_model_name": prediction.get("model_name"),
-                "online_error": online_error,
-                "online_probabilities": prediction.get("probabilities", {}),
-                "legacy_model_label": prediction.get("legacy_predicted_label", "unavailable"),
-                "legacy_model_probabilities": prediction.get("legacy_probabilities", {}),
-                "legacy_model_max_probability": prediction.get("legacy_max_probability", 0.0),
-                "legacy_model_gap": prediction.get("legacy_probability_gap", 0.0),
+                "class": [normalize_label_display(k) for k in ["hot", "warm", "cold"]],
+                "probability": [prediction["probabilities"].get(k, 0.0) for k in ["hot", "warm", "cold"]],
             }
         )
-    prob_df = pd.DataFrame(
-        {
-            "class": [normalize_label_display(k) for k in ["hot", "warm", "cold"]],
-            "probability": [prediction["probabilities"].get(k, 0.0) for k in ["hot", "warm", "cold"]],
-        }
-    )
-    st.subheader("Class Probabilities")
-    st.altair_chart(_altair_probabilities(prob_df, title="Class Probabilities"), use_container_width=True)
+        st.subheader("Class Probabilities")
+        st.altair_chart(_altair_probabilities(prob_df, title="Class Probabilities"), use_container_width=True)
 
 
 class LiveVideoProcessor(VideoProcessorBase):
@@ -996,6 +1115,7 @@ def page_pipeline_status(cfg: dict[str, Any]) -> None:
 
 
 def main() -> None:
+    inject_custom_css()
     cfg = load_config()
     cfg["paths"] = {key: Path(value) if not isinstance(value, Path) else value for key, value in cfg.get("paths", {}).items()}
     ensure_runtime_dirs(cfg)
@@ -1004,13 +1124,10 @@ def main() -> None:
     metrics_root = Path(cfg["paths"]["metrics_root"])
     metrics = load_json_safe(metrics_root / "metrics.json")
     pages = [
-        "Overview",
+        "Video Upload Prediction",
         "Dataset Dashboard",
         "Tabular Analytics",
         "Multimodal Features",
-        "Model Performance",
-        "Prediction",
-        "Video Upload Prediction",
         "Live Camera",
         "Pipeline Status",
     ]
@@ -1021,20 +1138,14 @@ def main() -> None:
         st.caption(f"Model mode: {model_mode(bundle, metrics)}")
         st.caption("Hybrid Real Estate Prospect Qualification System")
 
-    if selected_page == "Overview":
-        page_overview()
+    if selected_page == "Video Upload Prediction":
+        page_video_upload(cfg, model, bundle)
     elif selected_page == "Dataset Dashboard":
         page_dataset_dashboard(cfg)
     elif selected_page == "Tabular Analytics":
         page_tabular_analytics(cfg)
     elif selected_page == "Multimodal Features":
         page_multimodal_features(cfg)
-    elif selected_page == "Model Performance":
-        page_model_performance(cfg)
-    elif selected_page == "Prediction":
-        page_prediction(cfg, model, bundle)
-    elif selected_page == "Video Upload Prediction":
-        page_video_upload(cfg, model, bundle)
     elif selected_page == "Live Camera":
         page_live_camera(cfg, model, bundle)
     elif selected_page == "Pipeline Status":
